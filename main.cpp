@@ -242,6 +242,7 @@ pair<double,double> fitCircle(const vector< pair<double,double> > &v) {
 }
 vector<Snapshot *> trajectory;
 int main(int argc,char **argv) {
+    assert(1/(1+sqr(1.0/0))==0);
     ArgParser::init(argc,argv);
     assert(
         Boundary::parseData(ArgParser::getString("boundary-data",""))
@@ -267,33 +268,39 @@ int main(int argc,char **argv) {
         }
     }
     const int nFrame=trajectory.size();
-    FILE *fSizeHistory=fopen("sizeHistory.txt","w");
+    FILE *fSizeHistory=fopen("shapeHistory.txt","w");
     FILE *fEffectiveRadius=fopen("effectiveRadius.txt","w");
     const int iBegin=(int)(pBegin*nFrame);
     const int iEnd=nFrame-1;
-    fprintf(fGnuplot,"set title \'%s\';\n",title);
     for (int i=0;i<nFrame;i++) {
-        double z=0,r=0;
+        double z=0,r=0,s=0;
         const Position *p=trajectory[i]->p;
         int n=trajectory[i]->n;
         for (int j=0;j<n;j++) {
             z+=p[j].z;
             r+=sqr(p[j].x)+sqr(p[j].y);
+            double t=p[j].y/p[j].x;
+            t=1/(1+t*t);
+            s+=1-8*t+8*t*t;
         }
         z/=n;
         r/=n;
         r=sqrt(r);
-        fprintf(fSizeHistory,"%f\t%f\n",z,r);
+        s/=n;
+        fprintf(fSizeHistory,"%f\t%f\t%f\n",z,r,s);
     }
     fprintf(fGnuplot,"set terminal svg;\n");
-    fprintf(fGnuplot,"set output \'sizeHistory.svg\';\n");
+    fprintf(fGnuplot,"set output \'shapeHistory.svg\';\n");
+    fprintf(fGnuplot,"set title \'%s\';\n",title);
+    fprintf(fGnuplot,"set xrange [%d:%d];\n",-1,nFrame);
+    fprintf(fGnuplot,"set yrange [0:1];\n");
     fprintf(fGnuplot,"unset arrow;\n");
     fprintf(fGnuplot,"set arrow from %f,0 to %f,1 nohead;\n",iBegin-0.5,iBegin-0.5);
     fprintf(fGnuplot,"set arrow from %f,0 to %f,1 nohead;\n",iEnd+0.5,iEnd+0.5);
-    fprintf(fGnuplot,"plot \'sizeHistory.txt\' ");
-    fprintf(fGnuplot,"using 0:(($1-%f)/%f) t \'z\' w l, ",Boundary::zLow,Boundary::zHigh-Boundary::zLow);
-    fprintf(fGnuplot,"\'\' using 0:($2/%f) t \'r\' w l;\n",sqrt(sqr(Boundary::xHigh-Boundary::xLow)+sqr(Boundary::yHigh-Boundary::yLow))/2);
-    fprintf(fGnuplot,"set title \'%s';\n",title);
+    fprintf(fGnuplot,"plot \'shapeHistory.txt\' ");
+    fprintf(fGnuplot,"using 0:(($1-%f)/%f) t \'height\' w l, ",Boundary::zLow,Boundary::zHigh-Boundary::zLow);
+    fprintf(fGnuplot,"\'\' using 0:($2/%f) t \'radius\' w l, ",sqrt(sqr(Boundary::xHigh-Boundary::xLow)+sqr(Boundary::yHigh-Boundary::yLow))/2);
+    fprintf(fGnuplot,"\'\' using 0:($3/%f) t \'order\' w l;\n",3-PI);
     vector< pair<double,double> > effectiveRadiusList;
     for (double zCenter=Boundary::zLow;zCenter<Boundary::zHigh;zCenter+=Z_INTERVAL) {
         printf("zCenter=%f\n",zCenter);
@@ -342,6 +349,7 @@ int main(int argc,char **argv) {
     }
     fprintf(fGnuplot,"set terminal svg;\n");
     fprintf(fGnuplot,"set output \'effectiveRadius.svg\';\n");
+    fprintf(fGnuplot,"set title \'%s';\n",title);
     fprintf(fGnuplot,"unset arrow;\n");
     fprintf(fGnuplot,"set size ratio -1;\n");
     fprintf(fGnuplot,"plot \'effectiveRadius.txt\' u 2:1 t \'\',");
