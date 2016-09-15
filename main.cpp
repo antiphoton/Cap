@@ -248,7 +248,7 @@ int main(int argc,char **argv) {
     assert(
         Boundary::parseData(ArgParser::getString("boundary-data",""))
     );
-    FILE *gnuplot=fopen("./plot.gp","w");
+    FILE *fGnuplot=fopen("./plot.gp","w");
     FILE *fXyz=fopen(ArgParser::getString("xyz"),"r");
     const char *const waterType=ArgParser::getString("water");
     const int ATOMS_PER_NOTIFICATION=1000000;
@@ -266,12 +266,34 @@ int main(int argc,char **argv) {
             atomParsed%=ATOMS_PER_NOTIFICATION;
         }
     }
-    FILE *fEffectiveRadius=fopen("effectiveRadius.txt","w");
     const int nFrame=trajectory.size();
+    FILE *fSizeHistory=fopen("sizeHistory.txt","w");
+    FILE *fEffectiveRadius=fopen("effectiveRadius.txt","w");
     const int iBegin=(int)(FRAME_BEGIN*nFrame);
     const int iEnd=nFrame-1;
-    fprintf(gnuplot,"set terminal svg;\n");
-    fprintf(gnuplot,"set title \'SYS=%s  h=%f A=%f n=%d\';\n",TITLE,Z_HALFDEPTH*2,ANNULUS_AREA,iEnd-iBegin+1);
+    fprintf(fGnuplot,"set title \'%s\';\n",TITLE);
+    for (int i=0;i<nFrame;i++) {
+        double z=0,r=0;
+        const Position *p=trajectory[i]->p;
+        int n=trajectory[i]->n;
+        for (int j=0;j<n;j++) {
+            z+=p[j].z;
+            r+=sqr(p[j].x)+sqr(p[j].y);
+        }
+        z/=n;
+        r/=n;
+        r=sqrt(r);
+        fprintf(fSizeHistory,"%f\t%f\n",z,r);
+    }
+    fprintf(fGnuplot,"set terminal svg;\n");
+    fprintf(fGnuplot,"set output \'sizeHistory.svg\';\n");
+    fprintf(fGnuplot,"unset arrow;\n");
+    fprintf(fGnuplot,"set arrow from %f,0 to %f,1 nohead;\n",iBegin-0.5,iBegin-0.5);
+    fprintf(fGnuplot,"set arrow from %f,0 to %f,1 nohead;\n",iEnd+0.5,iEnd+0.5);
+    fprintf(fGnuplot,"plot \'sizeHistory.txt\' ");
+    fprintf(fGnuplot,"using 0:(($1-%f)/%f) t \'z\' w l, ",Boundary::zLow,Boundary::zHigh-Boundary::zLow);
+    fprintf(fGnuplot,"\'\' using 0:($2/%f) t \'r\' w l;\n",sqrt(sqr(Boundary::xHigh-Boundary::xLow)+sqr(Boundary::yHigh-Boundary::yLow))/2);
+    fprintf(fGnuplot,"set title \'%s';\n",TITLE);
     vector< pair<double,double> > effectiveRadiusList;
     for (double zCenter=Boundary::zLow;zCenter<Boundary::zHigh;zCenter+=Z_INTERVAL) {
         printf("zCenter=%f\n",zCenter);
@@ -318,14 +340,16 @@ int main(int argc,char **argv) {
             solid0=solid2;
         }
     }
-    fprintf(gnuplot,"set size ratio -1;\n");
-    fprintf(gnuplot,"set output \'effectiveRadius.svg\';\n");
-    fprintf(gnuplot,"plot \'effectiveRadius.txt\' u 2:1 t \'\',");
+    fprintf(fGnuplot,"set terminal svg;\n");
+    fprintf(fGnuplot,"set output \'effectiveRadius.svg\';\n");
+    fprintf(fGnuplot,"unset arrow;\n");
+    fprintf(fGnuplot,"set size ratio -1;\n");
+    fprintf(fGnuplot,"plot \'effectiveRadius.txt\' u 2:1 t \'\',");
     {
         pair<double,double> circleParam=fitCircle(effectiveRadiusList);
         double h=circleParam.first;
         double r=circleParam.second;
-        fprintf(gnuplot,"sqrt(%f*%f-x*x)%s%f t \'cos(theta)=%f\';\n",r,r,h>=0?"+":"",h,-h/r);
+        fprintf(fGnuplot,"sqrt(%f*%f-x*x)%s%f t \'cos(theta)=%f\';\n",r,r,h>=0?"+":"",h,-h/r);
     }
     for (int i=0;i<trajectory.size();i++) {
         delete trajectory[i];
