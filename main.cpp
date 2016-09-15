@@ -9,7 +9,7 @@ const char *WATER_TYPE = "1";
 const double Z_INTERVAL = 0.5;
 const double Z_HALFDEPTH = Z_INTERVAL/2;
 const double ANNULUS_AREA = 20;
-const double FRAME_BEGIN = 0.0;
+const double FRAME_BEGIN = 0.5;
 const double CIRCLE_BOTTOM = 8;
 const char *TITLE = "title";
 
@@ -39,7 +39,7 @@ namespace ArgParser {
             }
         }
     };
-    const char *const getString(const char *const name,const char *const defaultValue) {
+    const char *const getString(const char *const name,const char *const defaultValue=0) {
         map<string,string>::iterator v=m.find(name);
         if (v==m.end()) {
             assert(defaultValue!=0);
@@ -77,8 +77,8 @@ double getRadius(double i) {
 }
 struct Position {
     double x,y,z;
-    void read() {
-        scanf("%lf%lf%lf",&x,&y,&z);
+    void read(FILE *f) {
+        fscanf(f,"%lf%lf%lf",&x,&y,&z);
     };
     double distXY() const {
         return sqrt(x*x+y*y);
@@ -88,21 +88,21 @@ class Snapshot {
 public:
     int n;
     Position *p;
-    Snapshot():p(0) {
+    Snapshot(FILE *f):p(0) {
         int n0;
-        if (scanf("%d%*c",&n0)==EOF) {
+        if (fscanf(f,"%d%*c",&n0)==EOF) {
             return;
         }
         Position *p0=new Position[n0];
         bool *valid=new bool[n0];
-        scanf("%*[^\n]%*c");
+        fscanf(f,"%*[^\n]%*c");
         n=0;
         int i;
         for (i=0;i<n0;i++) {
             static char curType[10];
-            scanf("%s",curType);
+            fscanf(f,"%s",curType);
             valid[i]=strcmp(curType,WATER_TYPE)==0;
-            p0[i].read();
+            p0[i].read(f);
             if (valid[i]) {
                 n++;
             }
@@ -214,14 +214,14 @@ pair<double,double> fitCircle(const vector< pair<double,double> > &v) {
     return make_pair(h,r);
 }
 vector<Snapshot *> trajectory;
-FILE *gnuplot=fopen("./plot.gp","w");
 int main(int argc,char **argv) {
     ArgParser::init(argc,argv);
-    fprintf(gnuplot,"set terminal svg;\n");
+    FILE *gnuplot=fopen("./plot.gp","w");
+    FILE *fXyz=fopen(ArgParser::getString("xyz"),"r");
     const int ATOMS_PER_NOTIFICATION=1000000;
     long long atomParsed=0;
     while (1) {
-        Snapshot *s=new Snapshot();
+        Snapshot *s=new Snapshot(fXyz);
         if (s->p==0) {
             delete s;
             break;
@@ -233,11 +233,11 @@ int main(int argc,char **argv) {
             atomParsed%=ATOMS_PER_NOTIFICATION;
         }
     }
-    FILE *fAxisDensity=fopen("output/axisDensity.txt","w");
-    FILE *fEffectiveRadius=fopen("output/effectiveRadius.txt","w");
+    FILE *fEffectiveRadius=fopen("effectiveRadius.txt","w");
     const int nFrame=trajectory.size();
     const int iBegin=(int)(FRAME_BEGIN*nFrame);
     const int iEnd=nFrame-1;
+    fprintf(gnuplot,"set terminal svg;\n");
     fprintf(gnuplot,"set title \'SYS=%s  h=%f A=%f n=%d\';\n",TITLE,Z_HALFDEPTH*2,ANNULUS_AREA,iEnd-iBegin+1);
     vector< pair<double,double> > effectiveRadiusList;
     for (double zCenter=Z_LOW;zCenter<Z_HIGH;zCenter+=Z_INTERVAL) {
@@ -267,9 +267,6 @@ int main(int argc,char **argv) {
                 j++;
             }
             double d=1.0*c/(iEnd-iBegin+1)/(ANNULUS_AREA*Z_HALFDEPTH*2)/DENSITY_IDEAL;
-            if (i==1) {
-                fprintf(fAxisDensity,"%f\t%f\n",zCenter,d);
-            }
             solid2=d>0.5;
             if (solid0==true&&solid2==false) {
                 effectiveRadius=getRadius(i-1);
@@ -288,11 +285,9 @@ int main(int argc,char **argv) {
             solid0=solid2;
         }
     }
-    fprintf(gnuplot,"set output \'output/axisDensity.svg\';\n");
-    fprintf(gnuplot,"plot \'output/axisDensity.txt\';\n");
     fprintf(gnuplot,"set size ratio -1;\n");
-    fprintf(gnuplot,"set output \'output/effectiveRadius.svg\';\n");
-    fprintf(gnuplot,"plot \'output/effectiveRadius.txt\' u 2:1 t \'\',");
+    fprintf(gnuplot,"set output \'effectiveRadius.svg\';\n");
+    fprintf(gnuplot,"plot \'effectiveRadius.txt\' u 2:1 t \'\',");
     {
         pair<double,double> circleParam=fitCircle(effectiveRadiusList);
         double h=circleParam.first;
