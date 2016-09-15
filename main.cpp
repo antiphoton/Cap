@@ -1,11 +1,3 @@
-const bool BOUNDARY = true;
-const double X_LOW = 0;
-const double X_HIGH = 199.22048388651729;
-const double Y_LOW = 0;
-const double Y_HIGH = 200.22;
-const double Z_LOW = 0;
-const double Z_HIGH = 62;
-const char *WATER_TYPE = "1";
 const double Z_INTERVAL = 0.5;
 const double Z_HALFDEPTH = Z_INTERVAL/2;
 const double ANNULUS_AREA = 20;
@@ -70,6 +62,43 @@ namespace ArgParser {
         return getDouble0(name,&defaultValue);
     }
 }
+namespace Boundary {
+    double xLow,xHigh,yLow,yHigh,zLow,zHigh;
+    bool parseData0(const char **const s,const char *const sL,const char *const sH,double *pL,double *pH) {
+        if (strcmp(s[2],sL)==0&&strcmp(s[3],sH)==0) {
+            int n;
+            sscanf(s[0],"%lf%n",pL,&n);
+            bool bL=n==strlen(s[0]);
+            sscanf(s[1],"%lf%n",pH,&n);
+            bool bH=n==strlen(s[1]);
+            return bL&&bH;
+        }
+        return false;
+    }
+    bool parseData(const char *const filename) {
+        if (strlen(filename)==0) {
+            return false;
+        }
+        FILE *f=fopen(filename,"r");
+        static char line[100000];
+        bool gX=false,gY=false,gZ=false;
+        while (fgets(line,sizeof(line),f)) {
+            static char s[4][1000];
+            const char *p[]={s[0],s[1],s[2],s[3]};
+            if (sscanf(line,"%s%s%s%s",s[0],s[1],s[2],s[3])!=4) {
+                continue;
+            }
+            gX=gX||parseData0(p,"xlo","xhi",&xLow,&xHigh);
+            gY=gY||parseData0(p,"ylo","yhi",&yLow,&yHigh);
+            gZ=gZ||parseData0(p,"zlo","zhi",&zLow,&zHigh);
+        }
+        fclose(f);
+        printf("%f\t%f\n",xLow,xHigh);
+        printf("%f\t%f\n",yLow,yHigh);
+        printf("%f\t%f\n",zLow,zHigh);
+        return gX&&gY&&gZ;
+    }
+}
 const double PI=acos(-1.0);
 const double DENSITY_IDEAL = 0.033428;
 double getRadius(double i) {
@@ -88,7 +117,7 @@ class Snapshot {
 public:
     int n;
     Position *p;
-    Snapshot(FILE *f):p(0) {
+    Snapshot(FILE *f,const char *const waterType):p(0) {
         int n0;
         if (fscanf(f,"%d%*c",&n0)==EOF) {
             return;
@@ -101,7 +130,7 @@ public:
         for (i=0;i<n0;i++) {
             static char curType[10];
             fscanf(f,"%s",curType);
-            valid[i]=strcmp(curType,WATER_TYPE)==0;
+            valid[i]=strcmp(curType,waterType)==0;
             p0[i].read(f);
             if (valid[i]) {
                 n++;
@@ -117,9 +146,9 @@ public:
         }
         delete[] valid;
         delete[] p0;
-        if (BOUNDARY) {
-            handleBoundary((int)(long)(char*)(&(((Position*)0)->x)),X_LOW,X_HIGH);
-            handleBoundary((int)(long)(char*)(&(((Position*)0)->y)),Y_LOW,Y_HIGH);
+        if (1) {
+            handleBoundary((int)(long)(char*)(&(((Position*)0)->x)),Boundary::xLow,Boundary::xHigh);
+            handleBoundary((int)(long)(char*)(&(((Position*)0)->y)),Boundary::yLow,Boundary::yHigh);
         }
         handleMassCenter((int)(long)(char*)(&(((Position*)0)->x)));
         handleMassCenter((int)(long)(char*)(&(((Position*)0)->y)));
@@ -216,12 +245,16 @@ pair<double,double> fitCircle(const vector< pair<double,double> > &v) {
 vector<Snapshot *> trajectory;
 int main(int argc,char **argv) {
     ArgParser::init(argc,argv);
+    assert(
+        Boundary::parseData(ArgParser::getString("boundary-data",""))
+    );
     FILE *gnuplot=fopen("./plot.gp","w");
     FILE *fXyz=fopen(ArgParser::getString("xyz"),"r");
+    const char *const waterType=ArgParser::getString("water");
     const int ATOMS_PER_NOTIFICATION=1000000;
     long long atomParsed=0;
     while (1) {
-        Snapshot *s=new Snapshot(fXyz);
+        Snapshot *s=new Snapshot(fXyz,waterType);
         if (s->p==0) {
             delete s;
             break;
@@ -240,7 +273,7 @@ int main(int argc,char **argv) {
     fprintf(gnuplot,"set terminal svg;\n");
     fprintf(gnuplot,"set title \'SYS=%s  h=%f A=%f n=%d\';\n",TITLE,Z_HALFDEPTH*2,ANNULUS_AREA,iEnd-iBegin+1);
     vector< pair<double,double> > effectiveRadiusList;
-    for (double zCenter=Z_LOW;zCenter<Z_HIGH;zCenter+=Z_INTERVAL) {
+    for (double zCenter=Boundary::zLow;zCenter<Boundary::zHigh;zCenter+=Z_INTERVAL) {
         printf("zCenter=%f\n",zCenter);
         double z1=zCenter-Z_HALFDEPTH,z2=zCenter+Z_HALFDEPTH;
         vector<double> v;
