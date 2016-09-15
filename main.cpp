@@ -273,34 +273,42 @@ int main(int argc,char **argv) {
     const int iBegin=(int)(pBegin*nFrame);
     const int iEnd=nFrame-1;
     for (int i=0;i<nFrame;i++) {
-        double z=0,r=0,s=0;
+        double z=0,r=0,sC=0,sS=0;
         const Position *p=trajectory[i]->p;
         int n=trajectory[i]->n;
         for (int j=0;j<n;j++) {
             z+=p[j].z;
             r+=sqr(p[j].x)+sqr(p[j].y);
-            double t=p[j].y/p[j].x;
-            t=1/(1+t*t);
-            s+=1-8*t+8*t*t;
+            double t=atan2(p[j].y,p[j].x);
+            sC+=cos(4*t);
+            sS+=sin(4*t);
         }
         z/=n;
         r/=n;
         r=sqrt(r);
-        s/=n;
-        fprintf(fSizeHistory,"%f\t%f\t%f\n",z,r,s);
+        sC/=n;
+        sS/=n;
+        fprintf(fSizeHistory,"%f\t%f\t%f\n",z,r,sqrt(sqr(sC)+sqr(sS)));
     }
-    fprintf(fGnuplot,"set terminal svg;\n");
+    fprintf(fGnuplot,"set terminal svg size 1600,900;\n");
     fprintf(fGnuplot,"set output \'shapeHistory.svg\';\n");
-    fprintf(fGnuplot,"set title \'%s\';\n",title);
     fprintf(fGnuplot,"set xrange [%d:%d];\n",-1,nFrame);
-    fprintf(fGnuplot,"set yrange [0:1];\n");
-    fprintf(fGnuplot,"unset arrow;\n");
-    fprintf(fGnuplot,"set arrow from %f,0 to %f,1 nohead;\n",iBegin-0.5,iBegin-0.5);
-    fprintf(fGnuplot,"set arrow from %f,0 to %f,1 nohead;\n",iEnd+0.5,iEnd+0.5);
+    fprintf(fGnuplot,"set xtics rotate;\n",-1,nFrame);
+    fprintf(fGnuplot,"set multiplot layout 1,3 title \'%s\';\n",title);
+    fprintf(fGnuplot,"set title \'Average height\';\n");
     fprintf(fGnuplot,"plot \'shapeHistory.txt\' ");
-    fprintf(fGnuplot,"using 0:(($1-%f)/%f) t \'height\' w l, ",Boundary::zLow,Boundary::zHigh-Boundary::zLow);
-    fprintf(fGnuplot,"\'\' using 0:($2/%f) t \'radius\' w l, ",sqrt(sqr(Boundary::xHigh-Boundary::xLow)+sqr(Boundary::yHigh-Boundary::yLow))/2);
-    fprintf(fGnuplot,"\'\' using 0:($3/%f) t \'order\' w l;\n",3-PI);
+    fprintf(fGnuplot,"u 0:(($0<%d||$0>%d)?$1:(1/0)) t \'\' w l lt rgb \'#ff0000\', ",iBegin,iEnd);
+    fprintf(fGnuplot,"\'\' u 0:(($0>=%d&&$0<%d)?$1:(1/0)) t \'\' w l lt rgb \'#0000ff\';\n",iBegin,iEnd);
+    fprintf(fGnuplot,"set title \'Average radius\';\n");
+    fprintf(fGnuplot,"plot \'shapeHistory.txt\' ");
+    fprintf(fGnuplot,"u 0:(($0<%d||$0>%d)?$2:(1/0)) t \'\' w l lt rgb \'#ff0000\', ",iBegin,iEnd);
+    fprintf(fGnuplot,"\'\' u 0:(($0>=%d&&$0<%d)?$2:(1/0)) t \'\' w l lt rgb \'#0000ff\';\n",iBegin,iEnd);
+    fprintf(fGnuplot,"set title \'Order\';\n");
+    fprintf(fGnuplot,"plot \'shapeHistory.txt\' ");
+    fprintf(fGnuplot,"u 0:(($0<%d||$0>%d)?($3/%f):(1/0)) t \'\' w l lt rgb \'#ff0000\', ",iBegin,iEnd,PI-3);
+    fprintf(fGnuplot,"\'\' u 0:(($0>=%d&&$0<%d)?($3/%f):(1/0)) t \'\' w l lt rgb \'#0000ff\';\n",iBegin,iEnd,PI-3);
+    fprintf(fGnuplot,"unset multiplot;\n");
+    fprintf(fGnuplot,"set xtics norotate;\n",-1,nFrame);
     vector< pair<double,double> > effectiveRadiusList;
     for (double zCenter=Boundary::zLow;zCenter<Boundary::zHigh;zCenter+=Z_INTERVAL) {
         printf("zCenter=%f\n",zCenter);
@@ -347,10 +355,11 @@ int main(int argc,char **argv) {
             solid0=solid2;
         }
     }
-    fprintf(fGnuplot,"set terminal svg;\n");
+    fprintf(fGnuplot,"set terminal svg size 1600,900;\n");
     fprintf(fGnuplot,"set output \'effectiveRadius.svg\';\n");
     fprintf(fGnuplot,"set title \'%s';\n",title);
-    fprintf(fGnuplot,"unset arrow;\n");
+    fprintf(fGnuplot,"set xrange [0:%f];\n",(Boundary::yHigh-Boundary::yLow)/2);
+    fprintf(fGnuplot,"set yrange [%f:%f];\n",Boundary::zLow,Boundary::zHigh);
     fprintf(fGnuplot,"set size ratio -1;\n");
     fprintf(fGnuplot,"plot \'effectiveRadius.txt\' u 2:1 t \'\',");
     {
