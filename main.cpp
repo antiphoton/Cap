@@ -294,7 +294,7 @@ int main(int argc,char **argv) {
     fprintf(fGnuplot,"set output \'shapeHistory.svg\';\n");
     fprintf(fGnuplot,"set xrange [%d:%d];\n",-1,nFrame);
     fprintf(fGnuplot,"set xtics rotate;\n",-1,nFrame);
-    fprintf(fGnuplot,"set multiplot layout 1,3 title \'%s\';\n",title);
+    fprintf(fGnuplot,"set multiplot layout 1,3 title \'%s with water %d\';\n",title,trajectory[0]->n);
     fprintf(fGnuplot,"set title \'Average height\';\n");
     fprintf(fGnuplot,"plot \'shapeHistory.txt\' ");
     fprintf(fGnuplot,"u 0:(($0<%d||$0>%d)?$1:(1/0)) t \'\' w l lt rgb \'#ff0000\', ",iBegin,iEnd);
@@ -357,7 +357,7 @@ int main(int argc,char **argv) {
     }
     fprintf(fGnuplot,"set terminal svg size 1600,900;\n");
     fprintf(fGnuplot,"set output \'effectiveRadius.svg\';\n");
-    fprintf(fGnuplot,"set title \'%s';\n",title);
+    fprintf(fGnuplot,"set title \'%s with water %d\';\n",title,trajectory[0]->n);
     fprintf(fGnuplot,"set xrange [0:%f];\n",(Boundary::yHigh-Boundary::yLow)/2);
     fprintf(fGnuplot,"set yrange [%f:%f];\n",Boundary::zLow,Boundary::zHigh);
     fprintf(fGnuplot,"set size ratio -1;\n");
