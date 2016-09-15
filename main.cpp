@@ -13,14 +13,63 @@ const double FRAME_BEGIN = 0.0;
 const double CIRCLE_BOTTOM = 8;
 const char *TITLE = "title";
 
+#include<assert.h>
 #include<math.h>
 #include<stdio.h>
 #include<string.h>
 #include<algorithm>
 #include<fstream>
+#include<map>
+#include<string>
 #include<vector>
 using namespace std;
 
+namespace ArgParser {
+    map<string,string> m;
+    void init(int argc,char **argv) {
+        for (int i=0;i<argc;i++) {
+            char *s=argv[i];
+            if (strlen(s)>=3&&strncmp(s,"--",2)==0&&s[2]!='-') {
+                if (i+1<argc&&argv[i+1][0]!='-') {
+                    m[s+2]=argv[i+1];
+                }
+                else {
+                    m[s+2]="";
+                }
+            }
+        }
+    };
+    const char *const getString(const char *const name,const char *const defaultValue) {
+        map<string,string>::iterator v=m.find(name);
+        if (v==m.end()) {
+            assert(defaultValue!=0);
+            return defaultValue;
+        }
+        return v->second.c_str();
+    }
+    bool getBool(const string &name) {
+        return m.find(name)!=m.end();
+    }
+    double getDouble0(const char *const name,double *p) {
+        map<string,string>::iterator v=m.find(name);
+        if (v==m.end()) {
+            assert(p!=0);
+            return *p;
+        }
+        const char *s=v->second.c_str();
+        int n;
+        double y;
+        sscanf(s,"%lf%n",&y,&n);
+        assert(n==strlen(s));
+        return y;
+    }
+    double getDouble(const char *const name) {
+        return getDouble0(name,0);
+    }
+    double getDouble(const char *const name,double defaultValue) {
+        return getDouble0(name,&defaultValue);
+    }
+}
 const double PI=acos(-1.0);
 const double DENSITY_IDEAL = 0.033428;
 double getRadius(double i) {
@@ -41,12 +90,11 @@ public:
     Position *p;
     Snapshot():p(0) {
         int n0;
-        if (scanf("%d",&n0)==EOF) {
+        if (scanf("%d%*c",&n0)==EOF) {
             return;
         }
         Position *p0=new Position[n0];
         bool *valid=new bool[n0];
-        scanf("%*[^\n]%*c");
         scanf("%*[^\n]%*c");
         n=0;
         int i;
@@ -167,24 +215,27 @@ pair<double,double> fitCircle(const vector< pair<double,double> > &v) {
 }
 vector<Snapshot *> trajectory;
 FILE *gnuplot=fopen("./plot.gp","w");
-int main() {
+int main(int argc,char **argv) {
+    ArgParser::init(argc,argv);
     fprintf(gnuplot,"set terminal svg;\n");
+    const int ATOMS_PER_NOTIFICATION=1000000;
+    long long atomParsed=0;
     while (1) {
-        if (trajectory.size()%1000==0) {
-            printf("Snapshot %d\n",trajectory.size());
-        }
         Snapshot *s=new Snapshot();
         if (s->p==0) {
             delete s;
             break;
         }
         trajectory.push_back(s);
+        atomParsed+=s->n;
+        if (atomParsed>=ATOMS_PER_NOTIFICATION) {
+            printf("Snapshots parsed: %d\n",trajectory.size());
+            atomParsed%=ATOMS_PER_NOTIFICATION;
+        }
     }
     FILE *fAxisDensity=fopen("output/axisDensity.txt","w");
     FILE *fEffectiveRadius=fopen("output/effectiveRadius.txt","w");
     const int nFrame=trajectory.size();
-    printf("nFrame=%d\n",nFrame);
-    return 0;
     const int iBegin=(int)(FRAME_BEGIN*nFrame);
     const int iEnd=nFrame-1;
     fprintf(gnuplot,"set title \'SYS=%s  h=%f A=%f n=%d\';\n",TITLE,Z_HALFDEPTH*2,ANNULUS_AREA,iEnd-iBegin+1);
@@ -215,7 +266,6 @@ int main() {
                 c++;
                 j++;
             }
-            printf("rCur=%f\tc=%d\n",rCur,c);
             double d=1.0*c/(iEnd-iBegin+1)/(ANNULUS_AREA*Z_HALFDEPTH*2)/DENSITY_IDEAL;
             if (i==1) {
                 fprintf(fAxisDensity,"%f\t%f\n",zCenter,d);
