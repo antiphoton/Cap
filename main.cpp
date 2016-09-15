@@ -1,9 +1,7 @@
 const double Z_INTERVAL = 0.5;
 const double Z_HALFDEPTH = Z_INTERVAL/2;
 const double ANNULUS_AREA = 20;
-const double FRAME_BEGIN = 0.5;
 const double CIRCLE_BOTTOM = 8;
-const char *TITLE = "title";
 
 #include<assert.h>
 #include<math.h>
@@ -248,6 +246,8 @@ int main(int argc,char **argv) {
     assert(
         Boundary::parseData(ArgParser::getString("boundary-data",""))
     );
+    const char *const title=ArgParser::getString("title","");
+    const double pBegin=ArgParser::getDouble("frame-begin",0.5);
     FILE *fGnuplot=fopen("./plot.gp","w");
     FILE *fXyz=fopen(ArgParser::getString("xyz"),"r");
     const char *const waterType=ArgParser::getString("water");
@@ -269,9 +269,9 @@ int main(int argc,char **argv) {
     const int nFrame=trajectory.size();
     FILE *fSizeHistory=fopen("sizeHistory.txt","w");
     FILE *fEffectiveRadius=fopen("effectiveRadius.txt","w");
-    const int iBegin=(int)(FRAME_BEGIN*nFrame);
+    const int iBegin=(int)(pBegin*nFrame);
     const int iEnd=nFrame-1;
-    fprintf(fGnuplot,"set title \'%s\';\n",TITLE);
+    fprintf(fGnuplot,"set title \'%s\';\n",title);
     for (int i=0;i<nFrame;i++) {
         double z=0,r=0;
         const Position *p=trajectory[i]->p;
@@ -293,7 +293,7 @@ int main(int argc,char **argv) {
     fprintf(fGnuplot,"plot \'sizeHistory.txt\' ");
     fprintf(fGnuplot,"using 0:(($1-%f)/%f) t \'z\' w l, ",Boundary::zLow,Boundary::zHigh-Boundary::zLow);
     fprintf(fGnuplot,"\'\' using 0:($2/%f) t \'r\' w l;\n",sqrt(sqr(Boundary::xHigh-Boundary::xLow)+sqr(Boundary::yHigh-Boundary::yLow))/2);
-    fprintf(fGnuplot,"set title \'%s';\n",TITLE);
+    fprintf(fGnuplot,"set title \'%s';\n",title);
     vector< pair<double,double> > effectiveRadiusList;
     for (double zCenter=Boundary::zLow;zCenter<Boundary::zHigh;zCenter+=Z_INTERVAL) {
         printf("zCenter=%f\n",zCenter);
